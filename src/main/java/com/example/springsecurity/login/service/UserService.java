@@ -6,12 +6,14 @@ import com.example.springsecurity.exception.ErrorCode;
 import com.example.springsecurity.login.dto.JoinRequestDto;
 import com.example.springsecurity.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
     public String join(JoinRequestDto joinRequestDto) {
         //중복체크
@@ -21,7 +23,7 @@ public class UserService {
         //저장
         userRepository.save(User.builder()
                 .name(joinRequestDto.getUserName())
-                .password(joinRequestDto.getPassword())
+                .password(bCryptPasswordEncoder.encode(joinRequestDto.getPassword()))
                 .build());
 
 
