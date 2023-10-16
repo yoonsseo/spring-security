@@ -10,17 +10,23 @@
 
 ## 2. 스프링 시큐리티 설정
 ### 2.1. `SecurityFilterChain` 설정 
+> **변경**  
+> 스프링 부트 3.0 이상부터 스프링 시큐리티 6.0.0 이상의 버전이 적용되며  
+> Deprecated된 코드 변경 
 
 ```java
-.httpBasic().disable()
+//.httpBasic().disable()
+.httpBasic(HttpBasicConfigurer::disable)
 ```
 * UI쪽으로 들어오는 설정
 * Http basic Auth 기반으로 로그인 인증창이 뜨는데, JWT를 사용할 거라 뜨지 않도록 설정   
   \+ `formLogin.disable()` : formLogin 대신 JWT를 사용하기 때문에 disable로 설정
 
 ```java
-csrf.disable()
-.cors().and()
+//.csrf.disable()
+//.cors().and()
+.csrf(AbstractHttpConfigurer::disable)
+.cors(Customizer.withDefaults())
 ```
 * API를 작성하는데 프런트가 정해져있지 않기 때문에 csrf 설정 우선 꺼놓기
 * **CSRF란?**
@@ -43,22 +49,28 @@ csrf.disable()
     * `addAllowedMethod()` : 허용할 Http Method 설정
 
 ```java
-.authorizeRequests()
-.requestMatchers("/api/**").permitAll()
-.requestMatchers("/api/**/users/join", "/api/**/users/login").permitAll()
+//.authorizeRequests()
+//.requestMatchers("/api/**").permitAll()
+//.requestMatchers("/api/**/users/join", "/api/**/users/login").permitAll()
+.authorizeHttpRequests(authorize -> authorize
+    .requestMatchers("/api/**").permitAll()
+    .requestMatchers("/api/v1/users/join", "/api/v1/users/login").permitAll())
 ```
 * 특정한 경로에 특정한 권한을 가진 사용자만 접근할 수 있도록 하는 설정
-* `authorizeRequests()` : 시큐리티 처리에 HttpServletRequest를 이용한다는 것
+* `authorizeRequests()` : 시큐리티 처리에 HttpServletRequest를 이용한다는 것, 각 경로별 권한 처리 
 * `requestMatchers()` : 특정한 경로 지정
-  * 만약 spring-security 5.8 이상의 버전을 사용하는 경우에는 `antMatchers`, `mvcMatchers`, `regexMatchers`가 더 이상 사용되지 않기 때문에,   
+  * 만약 spring-security 5.8 이상의 버전을 사용하는 경우에는  
+    `antMatchers`, `mvcMatchers`, `regexMatchers`가 더 이상 사용되지 않기 때문에,   
     `requestMatchers`를 사용해야 한다고 함
 * `permitAll()` :  모든 사용자가 인증절차 없이 접근할 수 있음
 * `hasRole()` : 시스템 상에서 특정 권한을 가진 사람만이 접근할 수 있음
 * `anyRequest().authenticated()` : 나머지 모든 리소스들은 무조건 인증을 완료해야 접근이 가능하다는 의미
 
 ```java
-.sessionManagement()
-.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+//.sessionManagement()
+//.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+.sessionManagement((sessionManagement) -> sessionManagement
+    .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 ```
 * 스프링 시큐리티는 기본적으로 session을 사용해 웹을 처리하는데,  
   JWT를 사용하기 때문에 session을 stateless로 설정, 세션 사용하지 않음
@@ -72,11 +84,44 @@ csrf.disable()
 * 제출된 인코딩 되지 않은 패스워드(일치 여부를 확인하고자 하는 패스워드)와 인코딩 된 패스워드의 일치 여부 확인
 * 첫 번째 파라미터로 일치 여부를 확인하고자 하는 인코딩 되지 않은 패스워드, 두 번째 파라미터로 인코딩된 패스워드 입력
 * `boolean` 반환 
+ 
+## 🚨 Spring Security 테스트 하기
+### 1. 의존성 추가 🐘
+```java
+testImplementation 'org.springframework.security:spring-security-test'
+```
+### 2. 인증 정보 미리 주입하기 💉
+#### 2.1. SecurityContext에 직접 Authentication 주입
+#### 2.2. @WithMockUser
+* 테스트에 필요한 인증된 인증 정보를 제공하며 간단한 정보를 기본으로 설정할 수 있게 도와준다
+* 미리 인증된 사용자를 만들어놓지 않아도 간단하게 인증이 필요한 메소드를 테스트할 수 있다
+* `userName`, `password`, `role` 등을 어노테이션 value를 통해 설정해줄 수 있고,  
+  default value로 `username = "user"`, `password = "password"`, `role = "USER"`가 설정되어 있다
+* 테스트 시 필요한 정보가 인증여부 정도거나, 사용자 이름 등과 같이 간단한 것이라면  
+  `@WithMockUser`를 통해 간단히 테스트 가능
+#### 2.3. @WithAnonymousUser
+* 테스트 진행 시 `@WithMockUser`를 통해 **인증된 사용자 정보**를 간단히 주입해주었다면,  
+  반대로 `@WithAnonymousUser`는 **인증되지 않은 사용자**에 대한 테스트 시 이용
+
+### 3. csrf 설정해주기
+```java
+mockMvc.perform(post("/api/v1/users/login")
+        .with(csrf())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsBytes(new LoginRequestDto(userName, password))))
+    .andDo(print())
+    .andExpect(status().isUnauthorized());
+```
+* 테스트로 호출하면 스프링 시큐리티가 csrf라고 판단하기 때문에 `.with(csrf())` 꼭 처리 해주어야 한다
+#### csrf 처리 전
+![csrf 처리 전](https://github.com/yoonsseo/spring-security/assets/90557277/c8a16d1a-21c2-4cd1-9b7c-4402e3f82e6f)
+#### csrf 처리 후
+![csrf 처리 후](https://github.com/yoonsseo/spring-security/assets/90557277/1d8beb47-0487-4ac3-a63c-1fedc3dc17e1)
 
 
 ## 🪪 회원가입 
 >1. `POST` `/api/v1/users/join` 만들기   
->   - RequestBody - userName, password
+>    - RequestBody - userName, password
 >2. 회원가입 성공/실패 Controller Test
 >3. `UserService.join()` - 중복 체크해서 `ifPresent`면 `RuntimeException` 리턴
 >    - `@RestControllerAdvice` 선언
@@ -188,11 +233,11 @@ public class ExceptionManager {
 ![회원가입 포스트맨](https://github.com/yoonsseo/spring-security/assets/90557277/99eb10eb-96dd-4292-865e-bc6089a38432)
 
 ### 5. Spring Security 적용
-#### 의존성 추가 
+#### 5.1. 의존성 추가 🐘
 ```java
 implementation 'org.springframework.boot:spring-boot-starter-security'
 ```
-#### SecurityConfig에 설정 추가 
+#### 5.2. `SecurityConfig` 설정 추가 
 * 웹 설정을 extends 하던 방법이 있었는데, 스프링 부트 버전이 올라가면서  
   `@Bean`으로 `SpringFilterChain`을 재정의해서 이용하는 방법으로 바뀜  
 
@@ -201,7 +246,7 @@ implementation 'org.springframework.boot:spring-boot-starter-security'
 
 ![시큐리티 적용 DENY 포스트맨](https://github.com/yoonsseo/spring-security/assets/90557277/e2a18970-fc4a-495b-b123-7647b31ae6aa)
 
-#### `BCryptPasswordEncoder` 이용해 비밀번호 암호화해서 저장하기 
+#### 5.3. `BCryptPasswordEncoder` 이용해 비밀번호 암호화해서 저장하기 
 ```java
 //User Service
 private final BCryptPasswordEncoder bCryptPasswordEncoder;
@@ -212,6 +257,48 @@ private final BCryptPasswordEncoder bCryptPasswordEncoder;
 ```
 |적용 전|BCryptPasswordEncoder 적용 후|
 |---|---|
-|![인코딩 없이 저장된 비밀번호 DB](https://github.com/yoonsseo/spring-security/assets/90557277/b86eaf45-3d11-485d-a1f7-78a31be68674)|![인코딩 후 저장된 비밀번호 DB](https://github.com/yoonsseo/spring-security/assets/90557277/a6f62ddd-1955-4b7f-9a5a-d9521a230d6d)
-|
+|![인코딩 없이 저장된 비밀번호 DB](https://github.com/yoonsseo/spring-security/assets/90557277/b86eaf45-3d11-485d-a1f7-78a31be68674)|![인코딩 후 저장된 비밀번호 DB](https://github.com/yoonsseo/spring-security/assets/90557277/a6f62ddd-1955-4b7f-9a5a-d9521a230d6d)|
 * 순환 참조 문제가 생길 수 있기 때문에 `SecurityConfig`와 `BCryptPasswordEncoder`는 꼭 다른 클래스에 선언해주어야 한다고 한다 
+
+## 🔐 로그인 
+>1. 로그인 테스트
+>    - `Spring Security Test` 라이브러리 사용
+>    - `with(csrf())`로 호출 
+>2. 로그인 Service 구현  
+>    - `login(String userName, String password)`
+>    - 아이디 확인 → 비밀번호 확인 → TOKEN 발행 
+>3. 로그인 시 Token 발행하기
+>    - `JWT` 라이브러리 사용
+>    - `jwt.token.secret = "secretKey"`
+>    - `JWT_TOKEN_SECRET = "real_secret_key"`
+
+#### 로그인이란?
+아이디와 패스워드를 입력하면 `토큰`을 발행 해주는 것
+
+### 1. 로그인/회원가입 - 스프링 시큐리티 테스트 
+#### 로그인 경우의 수 
+1. 아이디와 패스워드 올바르게 입력 → `SUCCESS`
+2. 아이디가 없는 경우 → `NOT_FOUND`
+3. 비밀번호가 틀린 경우 → `UNAUTHORIZED`
+```java
+@Test
+@DisplayName("로그인 실패 - 아이디(이름) 없음")
+@WithMockUser
+void login_fail1() throws Exception {
+    //given
+    String userName = "hello";
+    String password = "1234";
+
+    //when, then
+    when(userService.login(userName, password))
+            .thenThrow(new AppException(ErrorCode.USER_NOT_FOUND, ""));
+
+    mockMvc.perform(post("/api/v1/users/login")
+                    .with(csrf())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(new LoginRequestDto(userName, password))))
+            .andDo(print())
+            .andExpect(status().isNotFound());
+}
+```
+
