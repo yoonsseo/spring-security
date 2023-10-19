@@ -159,12 +159,12 @@ runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
   → `jjwt-impl`에서 구현체를 찾아보지만 없기에 오류가 발생 
 
 #### 의존성을 세 개나 추가해야 하는 이유는?
-> `jjwt-api` 는 패키지 관리에 있어서 `implemenation` 과 `runtimeonly` 로 구분하여 의존성 추가를 권장하고 있다  
-> 경고 없이 언제든 변할 수 있는 패키지는 `runtimeonly`로 관리하고 그렇지 않은 것은 `implemenation`으로 관리해  
-> 안정적으로 `jjwt-api` 라이브러리를 사용하겠다는 의도
-> 즉, `jjwt-impl`, `jjwt-jackson` 또는 `jjwt-gson` 은 경고없이 언제든 변화할 수 있고  
-> `jjwt-api`는 하위호환성을 맞춰가며 개발한다는 의미  
-> 실제로 코드를 보면서 하위호환성에 대한 언급과 `@Deprecated`를 통해 코드를 유지하려는 노력을 살펴볼 수 있다
+> `jjwt-api` 는 패키지 관리에 있어서 `implemenation` 과 `runtimeonly` 로 구분하여 의존성 추가를 권장하고 있다   
+> 경고 없이 언제든 변할 수 있는 패키지는 `runtimeonly`로 관리하고 그렇지 않은 것은 `implemenation`으로 관리해   
+> 안정적으로 `jjwt-api` 라이브러리를 사용하겠다는 의도   
+> 즉, `jjwt-impl`, `jjwt-jackson` 또는 `jjwt-gson` 은 경고없이 언제든 변화할 수 있고   
+> `jjwt-api`는 하위호환성을 맞춰가며 개발한다는 의미   
+> 실제로 코드를 보면서 하위호환성에 대한 언급과 `@Deprecated`를 통해 코드를 유지하려는 노력을 살펴볼 수 있다 
 
 ### 4.2. JWT 생성 시 필요한 정보
 #### Jwts 클래스
@@ -209,35 +209,26 @@ public static String createToken(String userName, Key key, long expireTimeMs) {
    * 특정 문자열(String)이나 byte를 인수로 받는 메서드로 사용이 중단되었는데,  
      많은 사용자가 안전하지 않은 원시적인 암호 문자열을 키 인수로 사용하려고 시도하며 혼란스러워했기 때문이라고 한다 
     #### `signWith(java.security.Key key, io.jsonwebtoken.SignatureAlgorithm alg)`
-   * `String`이 아니라 `Key` 값을 생성하고 서명을 진행해야 한다 
-     ```java
-     Key = Keys.hmacShaKeyFor(secretKey.toByteArray(StandardCharsets.UTF_8))
-     ``` 
-   * `io.jsonwebtoken.security.WeakKeyException`
-       * `String`을 `Utf8`로 인코딩후 `Byte`로 형변환 할 때 `Exception`이 터질 수도 있다
-       * **`256bit`보다 커야** 한다는 `Exception` - 알파벳 한 글자당 `8bit`이므로 **32글자 이상**이어야 한다는 뜻
-       * 한글은 한 글자 당 `16bit`인데 16글자이면 생성될까? → 생성된다
+   * `String`이 아니라 `Key` 값을 생성하고 서명을 진행해야 한다
 
 
 6. `compact()` : JWT 생성하고 직렬화 
 
-```java
-//.signWith(SignatureAlgorithm.HS256, key)
-.signWith(key, SignatureAlgorithm.HS256)
-```
-#### `signWith(io.jsonwebtoken.SignatureAlgorithm, java.lang.String)' is deprecated`  
-* 특정 문자열(String)이나 byte를 인수로 받는 메서드로 사용이 중단되었는데,  
-  많은 사용자가 안전하지 않은 원시적인 암호 문자열을 키 인수로 사용하려고 시도하며 혼란스러워했기 때문이라고 한다 
-#### `signWith(java.security.Key key, io.jsonwebtoken.SignatureAlgorithm alg)`
-* `String`이 아니라 `Key` 값을 생성하고 서명을 진행해야 한다 
-  ```java
-  Key = Keys.hmacShaKeyFor(secretKey.toByteArray(StandardCharsets.UTF_8))
-  ``` 
-* `io.jsonwebtoken.security.WeakKeyException`
-  * `String`을 `Utf8`로 인코딩후 `Byte`로 형변환 할 때 `Exception`이 터질 수도 있다
-  * **`256bit`보다 커야** 한다는 `Exception` - 알파벳 한 글자당 `8bit`이므로 **32글자 이상**이어야 한다는 뜻  
-  * 한글은 한 글자 당 `16bit`인데 16글자이면 생성될까? → 생성된다 
 
+### 4.3. Secret Key 생성하기 
+#### 👀 Secret Key 란? 
+토큰을 생성하기 위한 Key 
+
+#### 코드
+```java
+String keyBase64Encoded = Base64.getEncoder().encodeToString(key.getBytes());
+SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
+```
+* 사용하고자 하는 `plain secretKey`(암호화 되지 않음, 첫 번째 줄의 `key`)를 `byte`배열로 변환해주고,  
+* HMAC-SHA 알고리즘을 통해 암호화해주는 `Keys.hmacShaKeyFor`를 통해 암호화된 `Key` 객체로 만들어주는 코드 
+#### **`io.jsonwebtoken.security.WeakKeyException`**
+* `secretKey`가 **`256bit`보다 커야** 한다는 `Exception` - 알파벳 한 글자당 `8bit`이므로 **32글자 이상**이어야 한다는 뜻
+* 한글은 한 글자 당 `16bit`인데 16글자이면 생성될까? → 생성된다
 
 
 ## 🪪 회원가입 
