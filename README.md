@@ -1,12 +1,122 @@
 # 📌 spring-security
 ## 1. 인증과 인가
 ### 🔐 인증 Authentication
-**증명하다**라는 의미로, 예를 들어 아이디와 비밀번호를 이용하여 로그인 하는 과정
-### ✅ 인가 Authorization
-**권한부여**나 **허가**와 같은 의미로 사용되고, 어떤 대상이 특정 목적을 실현하도록 허용(Access) 하는 것 의미  
+* **증명하다**라는 의미로, 예를 들어 아이디와 비밀번호를 이용하여 로그인 하는 과정
 
-> Web에서의 인증은 해당 URL은 보안 절차를 거친 사용자들만 접근할 수 있다는 의미이고,  
-> 인가란 URL에 접근한 사용자가 특정한 자격이 있다는 것 의미
+
+* 해당 사용자가 **본인이 맞는지** 확인하는 과정
+
+### ✅ 인가 Authorization
+* **권한부여**나 **허가**와 같은 의미로 사용되고, 어떤 대상이 특정 목적을 실현하도록 허용(Access) 하는 것 의미  
+
+
+* 해당 사용자가 요청하는 자원을 실행할 수 있는 **권한이 있는가**를 확인하는 과정
+
+###  Credential 기반의 인증 방식
+> Spring Security는 인증과 인가를 위해 `Principal`을 아이디로, `Credential`을 비밀번호로 사용하는   
+> 사용자 자격 증명 Credential 기반의 인증 방식을 사용한다  
+> * `Principal(접근 주체)` : 보호받는 Resource에 접근하는 대상
+> 
+>  
+> * `Credential(비밀번호)` : Resource에 접근하는 대상의 비밀번호
+
+### 🌐 Spring Security Architecture
+![Spring Security Architecture](https://github.com/yoonsseo/spring-security/assets/90557277/7d8cc2c4-3a4b-4a0c-9c5b-91b94ef0d0ba)
+> 1. `Http Request` - 사용자가 로그인 정보와 함께 인증 요청 
+> 
+> 
+> 2. `AuthenticationFilter`가 요청을 가로채고,  
+>    가로챈 정보를 통해 `UsernamePasswordAuthenticationToken`이라는 인증용 객체 생성해서  
+> 
+> 
+> 3. `AuthenticationManager`의 구현체인 `ProviderManager`에게 생성한 `UsernamePasswordAuthenticationToken` 객체 전달
+> 
+> 
+> 4. `AuthenticationManager`는 등록된 `AuthenticationProvider`들을 조회하고 인증 요구  
+> 
+> 
+> 5. `AuthenticationProvider`는 실제 DB에서 사용자 인증정보를 가져오는 `UserDetailsService`에 사용자 정보를 넘겨준다
+> 
+> 
+> 6. `UserDetailsService`는 `AuthenticationProvider`에게 넘겨받은 사용자 정보를 통해,  
+>    DB에서 찾은 사용자 정보인 `UserDetails` 객체를 만든다
+> 
+> 
+> 7. `AuthenticationProvider`들은 `UserDetails` 객체를 넘겨받고 사용자 정보 비교
+> 
+> 
+> 8. 인증이 완료되면, 권한 등의 사용자 정보를 담은 `Authentication` 객체를 반환한다
+> 
+> 
+> 9. 다시 최초의 `AuthenticationFilter`에 `Authentication` 객체가 반환되고  
+> 
+> 
+> 10. `Authenticaton` 객체를 `SecurityContext`에 저장
+
+#### 1. Authentication
+  * 현재 접근하는 주체의 정보와 권한을 담는 인터페이스
+  * `Authentication` 객체는 `SecurityContext`에 저장되며,    
+    `SecurityContextHolder`를 통해 `SecurityContext`에 접근하고,  
+    `SecurityContext`를 통해 `Authentication`에 접근할 수 있다  
+
+#### 2. UsernamePasswordAuthenticationToken
+* `Authentication`을 implements한 `AbstractAuthenticationToken`의 하위 클래스  
+  즉, `Authentication`의 구현체이고, 그래서 `AuthenticationManager`에서 인증과정을 수행할 수 있다 
+* User의 ID를 `Principal` 로, Password를 `Credential`로 생성한 인증 개체 
+  > 여기에서 말하는 `Principal` 역할을 하는 User의 ID 또는 Username은 로그인 시 ID와 PW의 ID를 똣한다  
+  > 로그인 시 email을 ID로 사용한다면 email이, 전화번호를 ID로 사용한다면 전화번호가 곧 Username이 된다 
+* `UsernamePasswordAuthenticationToken`의 첫 번째 생성자는 인증 전의 객체를 생성하고,  
+  두 번째는 인증이 완료된 객체를 생성한다
+
+#### 3. AuthenticationManager
+* 만들어진 `UsernamePasswordAuthenticationToken`은 `AuthenticationManager`의 인증 메소드를 호출하는 데 사용된다
+* 인증에 대한 부분은 `AuthenticationManager`를 통해서 처리하게 되는데,  
+  실질적으로는 `AuthenticationManager`에 등록된 `AuthenticationProvider`에 의해 처리된다
+* 인증에 성공하면 두 번째 생성자를 이용해 객체를 생성하여 `SecurityContext`에 저장한다
+
+#### 4. AuthenticationProvider
+* `AuthenticationManager`의 구현체 
+* `AuthenticationProvider`에서는 실제 인증에 대한 부분을 처리하는데,  
+  인증 전의 `Authentication` 객체를 받아서 인증이 완료된 객체를 반환하는 역할을 한다
+* Custom한 `AuthenticationProvider`를 작성하고 `AuthenticationManager`에 등록하면 된다
+
+#### 5. ProviderManager
+* `AuthenticationManager`를 implements한 `ProviderManager`는  
+  `AuthenticationProvider`를 구성하는 목록을 갖는다
+
+#### 6. UserDetailsService
+```java 
+public interface UserDetailsService {
+    UserDetails loadUserByUsername(String username) throws UsernameNotFoundException;
+}
+```
+* Spring Security의 **interface**이고, 구현체는 **직접 개발**해야한다 (customize)
+* `username`을 기반으로 검색한 `UserDetails` 객체를 반환하는 하나의 메소드 `loadUserByUsername` 만을 가지고 있고,
+  일반적으로 이를 implements한 클래스에 `UserRepository`를 주입받아 DB와 연결하여 처리한다
+* `UserDetailsService`는 DB에 저장된 회원의 비밀번호와 비교하고,  
+  일치하면 `UserDetails` 인터페이스를 구현한 객체를 반환한다
+
+#### 7. UserDetails
+* 인증에 성공하여 생성된 `UserDetails` 객체는 `Authentication` 객체를 구현한 `UsernamePasswordAuthenticationToken`을 생성하기 위해 사용된다
+
+#### 8. SecurityContextHolder
+* 보안 주체의 세부 정보를 포함하여 응용프로그램의 현재 보안 컨텍스트에 대한 세부 정보가 저장된다
+
+#### 9. SecurityContext
+* 인증된 사용자 정보 `Authentication`을 보관하는 역할 
+* `SecurityContext를` 통해 `Authentication`을 저장하거나 꺼내올 수 있다
+```java
+SecurityContextHolder.getContext().setAuthentication(authentication);
+SecurityContextHolder.getContext().getAuthentication(authentication);
+```
+
+#### 10. GrantedAuthority
+* 현재 사용자(Principal)가 가지고 있는 권한 의미
+* `ROLE_ADMIN`이나 `ROLE_USER`와 같이 `ROLE_*`의 형태로 사용한다
+* `GrantedAuthority` 객체는 `UserDetailsService`에 의해 불러올 수 있고,  
+* 특정 자원에 대한 권한이 있는지 검사해 접근 허용 여부를 결정한다
+
+
 
 ## 2. 스프링 시큐리티 설정
 ### 2.1. `SecurityFilterChain` 설정 
@@ -14,6 +124,7 @@
 > 스프링 부트 3.0 이상부터 스프링 시큐리티 6.0.0 이상의 버전이 적용되며  
 > Deprecated된 코드 변경 
 
+#### 2.1.1. 
 ```java
 //.httpBasic().disable()
 .httpBasic(HttpBasicConfigurer::disable)
@@ -22,6 +133,8 @@
 * Http basic Auth 기반으로 로그인 인증창이 뜨는데, JWT를 사용할 거라 뜨지 않도록 설정   
   \+ `formLogin.disable()` : formLogin 대신 JWT를 사용하기 때문에 disable로 설정
 
+
+#### 2.1.2. 
 ```java
 //.csrf.disable()
 //.cors().and()
@@ -48,6 +161,8 @@
     * `addAllowedHeader()` : 허용할 Header 설정
     * `addAllowedMethod()` : 허용할 Http Method 설정
 
+
+#### 2.1.3. 
 ```java
 //.authorizeRequests()
 //.requestMatchers("/api/**").permitAll()
@@ -62,10 +177,22 @@
   * 만약 spring-security 5.8 이상의 버전을 사용하는 경우에는  
     `antMatchers`, `mvcMatchers`, `regexMatchers`가 더 이상 사용되지 않기 때문에,   
     `requestMatchers`를 사용해야 한다고 함
-* `permitAll()` :  모든 사용자가 인증절차 없이 접근할 수 있음
+  > __URL 패턴 `/*` 과 `/**`__  
+  >
+  > * __`/*`__ : 경로의 바로 하위에 있는 모든 경로 매핑  
+  > 
+  >ex. `AAA/*` : `AAA/BBB`, `AAA/CCC` 해당, `AAA/BBB/CCC` 해당하지 않음    
+  > * __`/**`__ : 경로의 모든 하위 경로(디렉토리) 매핑  
+  > 
+  >ex. `AAA/**` : `AAA/BBB`, `AAA/CCC`, `AAA/BBB/CCC`, `AAA/.../.../DDD/...`, `AAA/BBB/CCC/.../.../...` 전부 해당  
+
+* `permitAll()` :  모든 사용자가 인증 절차 없이 접근할 수 있음
+* `authenticated()` : 인증된 사용자만 접근 가능   
 * `hasRole()` : 시스템 상에서 특정 권한을 가진 사람만이 접근할 수 있음
 * `anyRequest().authenticated()` : 나머지 모든 리소스들은 무조건 인증을 완료해야 접근이 가능하다는 의미
 
+
+#### 2.1.4. 
 ```java
 //.sessionManagement()
 //.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -74,6 +201,7 @@
 ```
 * 스프링 시큐리티는 기본적으로 session을 사용해 웹을 처리하는데,  
   JWT를 사용하기 때문에 session을 stateless로 설정, 세션 사용하지 않음
+
 
 ### 2.2. `BCryptPasswordEncode` 설정
 #### 🪢 **`BCryptPasswordEncode`**
@@ -130,11 +258,24 @@ mockMvc.perform(post("/api/v1/users/login")
 * Sign에 사용된 Algorithms, format, 그리고 ContentType 등의 정보
 #### 📄 Payload (Body)
 * `Claim` 단위로 저장
-* **Claim**
-  * 사용자의 속성이나 권한, 정보의 한 조각 또는 Json의 필드라고 생각하면 된다 
-  * `Claim`에는 JWT 생성자가 원하는 정보들을 자유롭게 담을 수 있는데  
-    Json 형식을 가지고 있기 때문에 단일 필드도 가능하고,  
-    Object와 같은 complexible한 필드도 추가할 수 있다
+> **Claim**
+>  * 사용자의 속성이나 권한, 정보의 한 조각 또는 Json의 필드라고 생각하면 된다 
+>  * `Claim`에는 JWT 생성자가 원하는 정보들을 자유롭게 담을 수 있는데  
+> Json 형식을 가지고 있기 때문에 단일 필드도 가능하고,  
+> Object와 같은 complexible한 필드도 추가할 수 있다  
+> 
+>   ```java
+>    Claims claims = Jwts.claims(); //일종의 Map
+>    claims.put("userName", userName);
+>    ...
+>        Jwts.builder()
+>                .setClaims(claims)
+>                ...
+>    ```
+> * Claim에 userName을 담아두면 따로 사용자 id를 입력받지 않아도 토큰에 들어있는 값을 꺼낼 수 있다 
+ 
+
+
 #### 📝 Signature
 * Header와 Body는 Base64 형태로 인코딩되어 암호화되어 있지 않은데  
   공격자가 내용을 바꿀 수가 있다
@@ -208,7 +349,7 @@ public static String createToken(String userName, Key key, long expireTimeMs) {
     ##### `signWith(io.jsonwebtoken.SignatureAlgorithm, java.lang.String)' is deprecated`  
    * 특정 문자열(String)이나 byte를 인수로 받는 메서드로 사용이 중단되었는데,  
      많은 사용자가 안전하지 않은 원시적인 암호 문자열을 키 인수로 사용하려고 시도하며 혼란스러워했기 때문이라고 한다 
-    #### `signWith(java.security.Key key, io.jsonwebtoken.SignatureAlgorithm alg)`
+    ##### `signWith(java.security.Key key, io.jsonwebtoken.SignatureAlgorithm alg)`
    * `String`이 아니라 `Key` 값을 생성하고 서명을 진행해야 한다
 
 
@@ -425,6 +566,7 @@ runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 ```
 #### 3.2. SecretKey 등록
+##### 3.2.1. [방법1] 환경 변수에서 넣어주기 
 * 왼쪽 상단의 `Run` → `Edit Configurations` 또는 오른쪽 상단에서 다음과 같이 `Edit Configurations`
 ![환경변수등록1](https://github.com/yoonsseo/spring-security/assets/90557277/dacea8e3-0068-4400-900b-732c0a847603)
 * 왼쪽 메뉴에서 `Spring Boot Application`으로 잘 접속되었나 확인 후   
@@ -433,6 +575,9 @@ runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
   ![환경변수등록3](https://github.com/yoonsseo/spring-security/assets/90557277/7aebe1bc-d7d8-4c89-897d-1acd76953663)
 * 환경 변수 옵션 칸에서 키-값 쌍을 직접 입력해주거나 오른쪽 아이콘을 눌러서 등록
     ![환경변수등록4](https://github.com/yoonsseo/spring-security/assets/90557277/030acec2-c913-4b4c-baa1-40a258a05e07)
+ 
+##### 3.2.2. [방법2] yml에서 바로 넣어주어도 상관없다 
+![yml-secret-key](https://github.com/yoonsseo/spring-security/assets/90557277/c640d87f-f463-4c4c-9881-c0dfd9065b33)
 
 #### 3.3. `JwtTokenUtil` - `createToken` 작성
 ```java
@@ -470,3 +615,37 @@ String token = JwtTokenUtil.createToken(userName, key, expireTimeMs);
 
 #### 포스트맨
 ![로그인토큰반환](https://github.com/yoonsseo/spring-security/assets/90557277/b92b8a59-c8e4-43ef-95a1-706dfabc8acf)
+
+
+## 🧿 인증과 인가 
+> 0. `POST` `api/v1/reviews` EndPoint 만들기
+> 1. 모든 `POST` 접근 막기   
+>   * JwtTokenFilter 인증 계층 추가하기  
+>   * 모든 요청에 권한 부여하기
+> 2. `TOKEN` 확인 
+>   * Token이 없으면 권한 부여하지 않기  
+>   * Token의 유효시간이 지났는지 확인하기  
+>   * Token에서 userName(id) 꺼내서 Controller에서 사용하기  
+    
+### 1. `AuthenticationConfig` - `@EnableWebSecurity` 
+앞서 로그인에서 설정했던 `SecurityConfig`의 `SecurityFilterChain` 재정의  
+```java
+.authorizeHttpRequests(authorize -> authorize
+        .requestMatchers("/api/**").permitAll()
+        .requestMatchers("/api/v1/users/join", "/api/v1/users/login").permitAll() 
+        //회원가입과 로그인은 권한 없이 언제나 가능
+        .requestMatchers(HttpMethod.POST, "api/**").authenticated()) 
+        //리뷰 쓰기는 권한 필요 
+```
+
+### 2. `JwtTokenFilter`
+Token 넣고 호출했을 때 인증하는 계층  
+받은 토큰을 풀어주어야하기 때문에 secretKey 필요   
+```java
+UsernamePasswordAuthenticationFilter.class
+```
+로그인 시 (username이라고 되어있지만) id와 pw로 이미 인증을 했기 때문에 
+```java
+
+```
+토큰이 있는지 매번 항상 확인해야 함 
