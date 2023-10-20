@@ -12,13 +12,15 @@
 
 * 해당 사용자가 요청하는 자원을 실행할 수 있는 **권한이 있는가**를 확인하는 과정
 
-###  Credential 기반의 인증 방식
-> Spring Security는 인증과 인가를 위해 `Principal`을 아이디로, `Credential`을 비밀번호로 사용하는   
-> 사용자 자격 증명 Credential 기반의 인증 방식을 사용한다  
-> * `Principal(접근 주체)` : 보호받는 Resource에 접근하는 대상
-> 
->  
-> * `Credential(비밀번호)` : Resource에 접근하는 대상의 비밀번호
+### 👻 Credential 기반의 인증 방식
+* Spring Security는 인증과 인가를 위해 `Principal`을 아이디로, `Credential`을 비밀번호로 사용하는   
+  사용자 자격 증명 Credential 기반의 인증 방식을 사용한다 
+
+
+* `Principal(접근 주체)` : 보호받는 Resource에 접근하는 대상
+ 
+
+* * `Credential(비밀번호)` : Resource에 접근하는 대상의 비밀번호
 
 ### 🌐 Spring Security Architecture
 ![Spring Security Architecture](https://github.com/yoonsseo/spring-security/assets/90557277/7d8cc2c4-3a4b-4a0c-9c5b-91b94ef0d0ba)
@@ -55,18 +57,39 @@
 
 #### 1. Authentication
   * 현재 접근하는 주체의 정보와 권한을 담는 인터페이스
+
+
   * `Authentication` 객체는 `SecurityContext`에 저장되며,    
     `SecurityContextHolder`를 통해 `SecurityContext`에 접근하고,  
     `SecurityContext`를 통해 `Authentication`에 접근할 수 있다  
 
 #### 2. UsernamePasswordAuthenticationToken
 * `Authentication`을 implements한 `AbstractAuthenticationToken`의 하위 클래스  
-  즉, `Authentication`의 구현체이고, 그래서 `AuthenticationManager`에서 인증과정을 수행할 수 있다 
-* User의 ID를 `Principal` 로, Password를 `Credential`로 생성한 인증 개체 
+  즉, `Authentication`의 구현체이고, 그래서 `AuthenticationManager`에서 인증과정을 수행할 수 있다  
+* 추후 인증이 끝나고 `SecurityContextHolder`에 등록될 `Authentication` 객체
+
+
+* User의 ID를 `Principal` 로, Password를 `Credential`로 생성한 인증 개체
   > 여기에서 말하는 `Principal` 역할을 하는 User의 ID 또는 Username은 로그인 시 ID와 PW의 ID를 똣한다  
   > 로그인 시 email을 ID로 사용한다면 email이, 전화번호를 ID로 사용한다면 전화번호가 곧 Username이 된다 
+  
 * `UsernamePasswordAuthenticationToken`의 첫 번째 생성자는 인증 전의 객체를 생성하고,  
   두 번째는 인증이 완료된 객체를 생성한다
+```java
+public UsernamePasswordAuthenticationToken(Object principal, Object credentials) {
+	super(null);
+	this.principal = principal;
+	this.credentials = credentials;
+	setAuthenticated(false);
+}
+public UsernamePasswordAuthenticationToken(Object principal, Object credentials,
+		Collection<? extends GrantedAuthority> authorities) {
+	super(authorities);
+	this.principal = principal;
+	this.credentials = credentials;
+	super.setAuthenticated(true); // must use super, as we override
+}
+```
 
 #### 3. AuthenticationManager
 * 만들어진 `UsernamePasswordAuthenticationToken`은 `AuthenticationManager`의 인증 메소드를 호출하는 데 사용된다
@@ -76,12 +99,12 @@
 
 #### 4. AuthenticationProvider
 * `AuthenticationManager`의 구현체 
-* `AuthenticationProvider`에서는 실제 인증에 대한 부분을 처리하는데,  
+* `AuthenticationProvider`에서는 **실제 인증에 대한 부분을 처리**하는데,  
   인증 전의 `Authentication` 객체를 받아서 인증이 완료된 객체를 반환하는 역할을 한다
 * Custom한 `AuthenticationProvider`를 작성하고 `AuthenticationManager`에 등록하면 된다
 
 #### 5. ProviderManager
-* `AuthenticationManager`를 implements한 `ProviderManager`는  
+* `AuthenticationManager`를 implements한 구현체 `ProviderManager`는  
   `AuthenticationProvider`를 구성하는 목록을 갖는다
 
 #### 6. UserDetailsService
@@ -109,6 +132,9 @@ public interface UserDetailsService {
 SecurityContextHolder.getContext().setAuthentication(authentication);
 SecurityContextHolder.getContext().getAuthentication(authentication);
 ```
+
+#### 👀 그래서 우리가 사용할 `Authentication` 객체는?  
+→ `UsernamePasswordAuthenticationToken` 객체 
 
 #### 10. GrantedAuthority
 * 현재 사용자(Principal)가 가지고 있는 권한 의미
@@ -620,32 +646,105 @@ String token = JwtTokenUtil.createToken(userName, key, expireTimeMs);
 ## 🧿 인증과 인가 
 > 0. `POST` `api/v1/reviews` EndPoint 만들기
 > 1. 모든 `POST` 접근 막기   
->   * JwtTokenFilter 인증 계층 추가하기  
+>   * JwtFilter 인증 계층 추가하기  
 >   * 모든 요청에 권한 부여하기
-> 2. `TOKEN` 확인 
->   * Token이 없으면 권한 부여하지 않기  
->   * Token의 유효시간이 지났는지 확인하기  
->   * Token에서 userName(id) 꺼내서 Controller에서 사용하기  
+> 2. `TOKEN` 여부 확인 
+>   * TOKEN 있으면 권한 부여 
+>   * TOKEN이 없으면 권한 부여하지 않기
+> 3. `TOKEN` 유효성 검증 
+>   * TOKEN의 유효시간이 지났는지 확인하기  
+> 4. `TOKEN`에서 userName(id) 꺼내서 Controller에서 사용하기  
     
-### 1. `AuthenticationConfig` - `@EnableWebSecurity` 
-앞서 로그인에서 설정했던 `SecurityConfig`의 `SecurityFilterChain` 재정의  
+### 1. 모든 요청에 권한 부여하기 
+#### 1.1. API 요청에 대해 접근 권한 설정  
+앞서 로그인에서 설정했던 `SecurityConfig`의 `SecurityFilterChain` 재정의 이용  
+→ `AuthenticationConfig` - `@EnableWebSecurity` 
 ```java
+//AuthenticationConfig - SecurityFilterChain
 .authorizeHttpRequests(authorize -> authorize
         .requestMatchers("/api/**").permitAll()
         .requestMatchers("/api/v1/users/join", "/api/v1/users/login").permitAll() 
-        //회원가입과 로그인은 권한 없이 언제나 가능
         .requestMatchers(HttpMethod.POST, "api/**").authenticated()) 
-        //리뷰 쓰기는 권한 필요 
 ```
+* 회원가입과 로그인은 누구나 권한 없이 언제나 접근할 수 있지만  
+* 리뷰 쓰기 및 다른 모든 요청에 대해서는 권한 필요  
 
-### 2. `JwtTokenFilter`
-Token 넣고 호출했을 때 인증하는 계층  
-받은 토큰을 풀어주어야하기 때문에 secretKey 필요   
+#### 1.2. JwtFilter 인증 계층 추가하기 
 ```java
-UsernamePasswordAuthenticationFilter.class
+//AuthenticationConfig - SecurityFilterChain
+.addFilterBefore(new JwtFilter(userService, secretKey), 
+        UsernamePasswordAuthenticationFilter.class)
 ```
-로그인 시 (username이라고 되어있지만) id와 pw로 이미 인증을 했기 때문에 
-```java
+* `addFilterBefore()`
+  * JWT 인증 필터 `JwtFilter`를 `UsernamePasswordAuthenticationFilter` 이전에 추가하는 역할
+  * 토큰이 있는지 매번 항상 확인해야 한다 
+  ```java
+  public HttpSecurity addFilterBefore(
+      @NotNull jakarta.servlet.Filter filter,
+      Class<? extends jakarta.servlet.Filter> beforeFilter)
+  ```
 
+#### 1.3. 모든 요청에 대해 권한 부여하기
+> `public class JwtFilter extends OncePerRequestFilter { ... }`
+
+```java
+private final UserService userService;
+private final String secretKey;
 ```
-토큰이 있는지 매번 항상 확인해야 함 
+* Token 넣고 호출했을 때 인증하는 계층 필요  
+* 받은 토큰을 풀어주어야하기 때문에 secretKey 필요
+
+```java
+@Override
+protected void doFilterInternal(
+        HttpServletRequest request, 
+        HttpServletResponse response, 
+        FilterChain filterChain) throws ServletException, IOException { ... }
+```
+* `Filter` 인터페이스를 구현하는 클래스에서 오버라이드할 메소드 중 하나
+* HTTP 요청을 필터링하고, 필터가 적용된 요청을 처리하는 역할
+
+
+```java
+authenticationToken.setDetails(
+        new WebAuthenticationDetailsSource().buildDetails(request));
+```
+*  사용자가 로그인할 때, 사용자의 IP 주소 및 사용자 에이전트 정보와 같은 웹 관련 정보 인증 토큰에 추가
+* `UsernamePasswordAuthenticationToken.setDetails()`
+  * `UsernamePasswordAuthenticationToken` 객체에 추가 정보 설정
+  * 사용자 인증과 관련된 추가 정보를 포함하고, 나중에 이 정보를 검색하거나 활용할 수 있다 
+* `WebAuthenticationDetailsSource()`
+  * 웹 애플리케이션에서의 인증 요청과 관련된 세부 정보를 생성하는 클래스
+  * 보통 이 세부 정보에는 IP 주소, 사용자 에이전트 정보 등이 포함된다
+* `buildDetails(httpServletRequest)`
+  * `buildDetails()` 메소드는 주어진 `HttpServletRequest` 객체로부터 웹 인증 세부 정보를 생성한다
+  * `HttpServletRequest` 객체는 웹 요청과 관련된 정보를 포함하고,  
+    이를 기반으로 IP 주소 및 사용자 에이전트 정보를 추출한다  
+  
+```java
+SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+```
+* 현재 사용자의 인증 정보를 `authenticationToken`으로 변경 
+* `SecurityContextHolder.getContext()`
+  * 현재 사용자 및 인증 정보를 관리하는 `SecurityContextHolder` 객체에서   
+  * 현재 사용자와 관련된 정보가 저장되는 보안 컨텍스트 가져오기 
+* `.setAuthentication(UsernamePasswordAuthenticationToken)`
+  * 현재 사용자의 인증 정보 `UsernamePasswordAuthenticationToken`으로 설정
+
+```java
+filterChain.doFilter(request, response);
+```
+* `doFilter()`
+  ```java
+  public abstract void doFilter(
+      jakarta.servlet.ServletRequest request,
+      jakarta.servlet.ServletResponse response)
+  ```
+  * `Filter` 인터페이스를 구현한 필터에서 정의된 메소드
+  * 필터가 요청(request) 및 응답(response)을 처리하는 메소드
+  * 필터는 이 메소드를 통해 요청과 응답을 가로채고 수정할 수 있다  
+    ex. 요청을 가로채 권한 확인하기  
+
+### 2. `TOKEN` 여부 확인
+>   * TOKEN 있으면 권한 부여
+>   * TOKEN이 없으면 권한 부여하지 않기
