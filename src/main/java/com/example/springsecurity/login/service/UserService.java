@@ -3,10 +3,8 @@ package com.example.springsecurity.login.service;
 import com.example.springsecurity.domain.User;
 import com.example.springsecurity.exception.AppException;
 import com.example.springsecurity.exception.ErrorCode;
-import com.example.springsecurity.login.dto.JoinRequestDto;
-import com.example.springsecurity.login.dto.LoginRequestDto;
 import com.example.springsecurity.repository.UserRepository;
-import com.example.springsecurity.util.JwtTokenUtil;
+import com.example.springsecurity.util.JwtUtil;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +12,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 @Service
@@ -23,11 +20,12 @@ public class UserService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
-    @Value("${jwt.token.secret}")
-    private String key;
+    @Value("${jwt.secret}")
+    private String secretKey;
 
     //토큰 만료 시간 1초 * 60 * 60 = 1시간
-    private final static Long expireTimeMs = 1000 * 60 * 60L;
+    private final static Long expireTimeMs = 1000 * 60L;
+//            1000 * 60 * 60L;
 
     public String join(String userName, String password) {
         //중복체크
@@ -57,10 +55,10 @@ public class UserService {
         //토큰 발행
 
         //plain key → secret key
-        String keyBase64Encoded = Base64.getEncoder().encodeToString(key.getBytes());
+        String keyBase64Encoded = Base64.getEncoder().encodeToString(secretKey.getBytes());
         SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
 
-        String token = JwtTokenUtil.createToken(userName, key, expireTimeMs);
+        String token = JwtUtil.createToken(userName, key, expireTimeMs);
 
         return token;
     }
