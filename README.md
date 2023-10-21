@@ -124,6 +124,8 @@ public interface UserDetailsService {
 
 #### 8. SecurityContextHolder
 * 보안 주체의 세부 정보를 포함하여 응용프로그램의 현재 보안 컨텍스트에 대한 세부 정보가 저장된다
+* `SecurityContextHolder`는 `ThreadLocal`에 저장되어, `Thread`별로 `SecurityContextHolder` 인스턴스를 가지고 있기 때문에,  
+  사용자 별로 `Authentication` 객체를 가질 수 있다 
 
 #### 9. SecurityContext
 * 인증된 사용자 정보 `Authentication`을 보관하는 역할 
@@ -397,6 +399,63 @@ SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
 * `secretKey`가 **`256bit`보다 커야** 한다는 `Exception` - 알파벳 한 글자당 `8bit`이므로 **32글자 이상**이어야 한다는 뜻
 * 한글은 한 글자 당 `16bit`인데 16글자이면 생성될까? → 생성된다
 
+## 5. JWT - JWT 검증하기
+> 1. `Jwts.parserBuilder()` 메소드로 `JwtParserBuilder` 인스턴스 생성
+> 2. JWS 서명 검증을 위한 `SecretKey` 또는 `비대칭 공개키` 지정
+>    > `TOKEN` 발급 시 사용했던 `secretKey`
+> 3. `build()` 메소드를 호출하면 thread-safe한 `JwtParser`가 반환된다  
+> 4. `parseClaimsJws(jwtString)` 메소드를 호출하면 오리지널 signed JWT가 반환된다  
+> 5. 검증에 실패하면 `Exception` 발생
+
+#### JWT TOKEN 파싱하기 
+```java
+Jws<Claims> jws = Jwts.parserBuilder()
+        .setSigningKey(key)
+        .build()
+        .parseClaimsJws(token); 
+```
+* `parseClaimsJws(token)` 
+  * 파라미터로 주어진 `JWT 토큰` 파싱
+  * `JWT 토큰`의 구성 요소 Header, Body(Payload), Signature를 분석하고,  
+    서명을 확인해 JWT의 무결성 검증
+  * `JWT 토큰` 생성 시의 `Claim` 정보를 추출할 수 있다 
+  
+
+* `parseClaimsJwt()`
+  * `parseClaimsJws()`가 아니라 `parseClaimsJwt()`를 사용하면 오류 발생
+  * 처음에 `TOKEN`을 생성할 때 `signWith()`를 통해 **서명**을 했기 때문에  
+    복호화 시에도 **서명에 대한 검증**을 진행해야 한다 
+  * `parseClaimsJwt()`는 서명 검증 없이 단순히 헤더와 클레임만 추출한다 
+  * `parseClaimsJwt()`를 사용하고 싶다면 `TOKEN` 생성 시 `signWith()`를 통해 서명에 대한 정보를 넘겨주지 않으면 된다  
+
+```java
+Claims claims = jws.getBody();
+```
+* `getBody()`
+  * `TOKEN`의 `Claim` 정보 또는 토큰에 포함된 데이터,  
+    즉, `TOKEN` 생성 시 포함한 사용자 정보, 권한, 만료 시간 등을 추출할 수 있다
+  
+
+* 이 외에도 `getHeader()`와 `getSignature()`를 통해 각각 `TOKEN`의 메타데이터와 서명을 추출할 수 있다 
+
+#### Claim 추출하기
+```java
+String username = claims.get("username", String.class); // "username" 클레임 값 추출
+String role = claims.get("role", String.class); // "role" 클레임 값 추출
+Date expiration = claims.getExpiration();
+Date issuedAt = claims.getIssuedAt();
+```
+* `get()`
+  * 키와 값의 쌍으로 저장된 `Claim`은 키를 통해 값을 찾을 수 있다
+  ```java
+    public abstract <T> T get(String claimName, Class<T> requiredType)
+  ```
+  * `Claim` 키와 타입에 맞는 값 반환
+  
+
+* 이 외에도 `TOKEN` 만료 시간을 추출하는 `getExpiration()`이나  
+  `TOKEN` 생성 시간을 추출하는 `getIssuedAt()` 등의 메소드가 있다  
+
 
 ## 🪪 회원가입 
 >1. `POST` `/api/v1/users/join` 만들기   
@@ -646,13 +705,13 @@ String token = JwtTokenUtil.createToken(userName, key, expireTimeMs);
 ## 🧿 인증과 인가 
 > 0. `POST` `api/v1/reviews` EndPoint 만들기
 > 1. 모든 `POST` 접근 막기   
->   * JwtFilter 인증 계층 추가하기  
->   * 모든 요청에 권한 부여하기
+>    - JwtFilter 인증 계층 추가하기  
+>    - 모든 요청에 권한 부여하기
 > 2. `TOKEN` 여부 확인 
->   * TOKEN 있으면 권한 부여 
->   * TOKEN이 없으면 권한 부여하지 않기
+>    - TOKEN 있으면 권한 부여 
+>    - TOKEN이 없으면 권한 부여하지 않기
 > 3. `TOKEN` 유효성 검증 
->   * TOKEN의 유효시간이 지났는지 확인하기  
+>    - TOKEN의 유효시간이 지났는지 확인하기  
 > 4. `TOKEN`에서 userName(id) 꺼내서 Controller에서 사용하기  
     
 ### 1. 모든 요청에 권한 부여하기 
@@ -744,7 +803,75 @@ filterChain.doFilter(request, response);
   * 필터가 요청(request) 및 응답(response)을 처리하는 메소드
   * 필터는 이 메소드를 통해 요청과 응답을 가로채고 수정할 수 있다  
     ex. 요청을 가로채 권한 확인하기  
+  * 현재 필터에서 요청 및 응답을 처리하고,  
+    이후에 실행될 다음 필터를 호출하기 위해 `FilterChain`의 `doFilter()`를 호출하는데,     
+    이 때, 다음 필터로 요청 및 응답 계속 전달  
 
 ### 2. `TOKEN` 여부 확인
 >   * TOKEN 있으면 권한 부여
 >   * TOKEN이 없으면 권한 부여하지 않기
+
+#### TOKEN이 없으면 권한 부여하지 않기 
+```java
+//JwtFilter - doFilterInternal 
+
+//Header에서 TOKEN 꺼내기
+final String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+log.info("authorization : {}", authorization); //Slf4j 
+
+//TOKEN 없으면 권한 부여 전 리턴
+if (authorization == null || !authorization.startsWith("Bearer ")) {
+    log.error("잘못된 authorization 또는 없음");
+    filterChain.doFilter(request, response);
+    return;
+}
+
+//TOKEN 꺼내기 - "Bearer " 제거
+        String token = authorization.split(" ")[1];
+        log.info("TOKEN - {}", token);
+```
+
+#### 포스트맨 
+![토큰 여부 확인](https://github.com/yoonsseo/spring-security/assets/90557277/ee2417f8-8d15-4438-98e9-0bfed4a28aa8)   
+* 토큰이 없으면 작동하지 않음!  
+
+|![토큰 여부](https://github.com/yoonsseo/spring-security/assets/90557277/ffdc1741-87ba-45b4-a427-1a26716e3df9)| 근데 <br> 아무 `TOKEN`을 넣어도 <br> 작동하는 문제! |
+|---|---------------------------------------|
+
+### 3. `TOKEN` 유효성 검증
+> - TOKEN의 유효시간이 지났는지 확인하기
+
+#### TOKEN 유효시간 만료되었는지 확인
+```java
+//JwtUtil 
+public static boolean isExpired(String token, String secretKey) {
+    String keyBase64Encoded = Base64.getEncoder().encodeToString(secretKey.getBytes());
+    SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
+
+    Date expiration = Jwts.parserBuilder()
+    .setSigningKey(key)
+    .build()
+    .parseClaimsJws(token)
+    .getBody()
+    .getExpiration();
+    
+    boolean isExpired = expiration.before(new Date());
+
+    return isExpired;
+    }
+```
+```java
+//TOKEN 유효시간 검증
+if (JwtUtil.isExpired(token, secretKey)) {
+    log.error("TOKEN 만료");
+    filterChain.doFilter(request, response);
+    return;
+}
+```
+#### 포스트맨
+![토큰 만료](https://github.com/yoonsseo/spring-security/assets/90557277/c72bb59b-7418-4be7-9370-1052cbe69dfd)  
+* `TOKEN` 유효 시간 이내에 리뷰 쓰기를 하면 `TOKEN`과 관련된 로그가 잘 나왔지만
+
+
+* `TOKEN` 유효 시간 이후에 리뷰 쓰기를 하면 `TOKEN` 만료로 인한 `ExpiredJwtException`이 발생한다 
+
