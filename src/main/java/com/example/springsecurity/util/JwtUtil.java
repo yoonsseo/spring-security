@@ -39,4 +39,16 @@ public class JwtUtil {
 
         return isExpired;
     }
+
+    public static String getUsername(String token, String secretKey) {
+        String keyBase64Encoded = Base64.getEncoder().encodeToString(secretKey.getBytes());
+        SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
+        String userName = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("userName", String.class);
+        return userName;
+    }
 }
