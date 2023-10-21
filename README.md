@@ -875,3 +875,33 @@ if (JwtUtil.isExpired(token, secretKey)) {
 
 * `TOKEN` 유효 시간 이후에 리뷰 쓰기를 하면 `TOKEN` 만료로 인한 `ExpiredJwtException`이 발생한다 
 
+### 4. `TOKEN`에서 userName(ID) 꺼내서 Controller에서 사용하기  
+#### 4.1. userName(ID) 추출
+```java
+//TOKEN에서 userName 꺼내기
+String userName = JwtUtil.getUsername(token, secretKey);
+log.info("ID(userName) : {}", userName);
+
+//권한 부여
+UsernamePasswordAuthenticationToken authenticationToken =
+        new UsernamePasswordAuthenticationToken(userName, null, List.of(new SimpleGrantedAuthority("USER")));
+```
+* `TOKEN`에서 `userName(ID)`의 `Claim` 추출하는 메소드 `JwtUtil.getUsername()` 생성
+
+
+* 그리고 추출한 `userName(ID)`을 `UsernamePasswordAuthenticationToken`에 넣어주면 `Controller`에서 `userName(ID)`을 사용할 수 있다 
+
+#### 4.2. Controller에서 사용하기
+```java
+import org.springframework.security.core.Authentication;
+...
+@PostMapping
+public ResponseEntity<String> writeReview(Authentication authentication) {
+    return ResponseEntity.ok().body(authentication.getName() + " 리뷰 등록 완료");
+}
+```
+
+#### 포스트맨
+|![로그](https://github.com/yoonsseo/spring-security/assets/90557277/2f6ee378-7148-4249-ab40-03151779ade4)|![리뷰컨트롤러](https://github.com/yoonsseo/spring-security/assets/90557277/2da4d560-1a7a-4816-95d8-d28bf25e8bc9)|
+|---|---|
+* 로그도 잘 나오고 포스트맨에서도 결과가 잘 반영된 것을 확인할 수 있다 
