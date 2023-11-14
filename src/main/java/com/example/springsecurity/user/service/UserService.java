@@ -1,31 +1,20 @@
-package com.example.springsecurity.login.service;
+package com.example.springsecurity.user.service;
 
 import com.example.springsecurity.domain.User;
 import com.example.springsecurity.exception.AppException;
 import com.example.springsecurity.exception.ErrorCode;
 import com.example.springsecurity.repository.UserRepository;
-import com.example.springsecurity.util.JwtUtil;
-import io.jsonwebtoken.security.Keys;
+import com.example.springsecurity.configuration.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import javax.crypto.SecretKey;
-import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
-
-    @Value("${jwt.secret}")
-    private String secretKey;
-
-    //토큰 만료 시간 1초 * 60 * 60 = 1시간
-    private final static Long expireTimeMs = 1000 * 60L;
-//            1000 * 60 * 60L;
+    private final JwtTokenProvider jwtTokenProvider;
 
     public String join(String userName, String password) {
         //중복체크
@@ -53,12 +42,7 @@ public class UserService {
         }
 
         //토큰 발행
-
-        //plain key → secret key
-        String keyBase64Encoded = Base64.getEncoder().encodeToString(secretKey.getBytes());
-        SecretKey key = Keys.hmacShaKeyFor(keyBase64Encoded.getBytes());
-
-        String token = JwtUtil.createToken(userName, key, expireTimeMs);
+        String token = jwtTokenProvider.createToken(user.getName(), user.getRole().name());
 
         return token;
     }

@@ -1,8 +1,8 @@
-package com.example.springsecurity.login.controller;
+package com.example.springsecurity.user.controller;
 
-import com.example.springsecurity.login.dto.JoinRequestDto;
-import com.example.springsecurity.login.dto.LoginRequestDto;
-import com.example.springsecurity.login.service.UserService;
+import com.example.springsecurity.user.dto.JoinRequestDto;
+import com.example.springsecurity.user.dto.LoginRequestDto;
+import com.example.springsecurity.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
